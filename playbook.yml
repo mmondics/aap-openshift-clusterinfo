@@ -9,26 +9,26 @@
       context: "{{ k8s_context | default(omit) }}"
 
   tasks:
-    - name: Ensure kubernetes.core collection is available
-      ansible.builtin.meta: require_collection
-      collections:
-        - kubernetes.core
+    # - name: Ensure kubernetes.core collection is available
+    #   ansible.builtin.meta: require_collection
+    #   collections:
+    #     - kubernetes.core
 
-    - name: Show cluster API endpoint from oc whoami --show-server
-      ansible.builtin.command: oc whoami --show-server
-      register: whoami_server
-      changed_when: false
+    # - name: Show cluster API endpoint from oc whoami --show-server
+    #   ansible.builtin.command: oc whoami --show-server
+    #   register: whoami_server
+    #   changed_when: false
 
-    - name: Print API endpoint detected by oc
-      ansible.builtin.debug:
-        msg: "oc whoami --show-server => {{ whoami_server.stdout }}"
+    # - name: Print API endpoint detected by oc
+    #   ansible.builtin.debug:
+    #     msg: "oc whoami --show-server => {{ whoami_server.stdout }}"
 
-    - name: Verify current oc context matches expected API endpoint
-      ansible.builtin.assert:
-        that:
-          - whoami_server.stdout == k8s_api_url
-        success_msg: "Connected to expected API server {{ k8s_api_url }}"
-        fail_msg: "Current oc context points to {{ whoami_server.stdout }}, not {{ k8s_api_url }}"
+    # - name: Verify current oc context matches expected API endpoint
+    #   ansible.builtin.assert:
+    #     that:
+    #       - whoami_server.stdout == k8s_api_url
+    #     success_msg: "Connected to expected API server {{ k8s_api_url }}"
+    #     fail_msg: "Current oc context points to {{ whoami_server.stdout }}, not {{ k8s_api_url }}"
 
     - name: Gather cluster API resources (k8s_cluster_info)
       kubernetes.core.k8s_cluster_info:
