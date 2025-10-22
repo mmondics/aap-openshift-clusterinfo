@@ -32,8 +32,10 @@
 
     - name: Gather cluster API resources (k8s_cluster_info)
       kubernetes.core.k8s_cluster_info:
-        kubeconfig: "{{ k8s_kubeconfig }}"
-        context: "{{ k8s_context | default(omit) }}"
+        host: "{{ k8s_host }}"
+        username: "{{ k8s_user }}"
+        password: "{{ k8s_pass }}"
+        validate_certs: "{{ validate_certs }}"
       register: cluster_info
 
     - name: Save cluster API resources to a local file
