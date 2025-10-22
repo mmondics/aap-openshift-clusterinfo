@@ -1,0 +1,10 @@
+all:
+  hosts:
+    localhost:
+      ansible_connection: local
+      # Your expected API endpoint from: oc whoami --show-server
+      k8s_api_url: "https://api.ocpvirt.cpolab.ibm.com:6443"
+      # Use current kubeconfig/context so your oc login is reused
+      # k8s_kubeconfig: "{{ lookup('env','KUBECONFIG') | default('~/.kube/config', true) }}"
+      # Optional: set to a specific context name if you don’t want the current one
+      # k8s_context: "your-ocp-context"
