@@ -33,11 +33,10 @@
         validate_certs: "{{ validate_certs }}"
       register: cluster_info
 
-    # - name: Save cluster API resources to a local file
-    #   ansible.builtin.copy:
-    #     dest: "./cluster_api_resources.json"
-    #     content: "{{ cluster_info | to_nice_json }}"
-
+    - name: Print raw cluster info
+      ansible.builtin.debug:
+        var: cluster_info
+      
     # - name: Show a quick summary from k8s_cluster_info
     #   ansible.builtin.debug:
     #     msg:
