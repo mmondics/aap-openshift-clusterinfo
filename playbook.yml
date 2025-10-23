@@ -103,22 +103,40 @@
 
     # 7) Human-friendly summary in the job log
     - name: Summary
-      debug:
+      vars:
+        ocp_version: >-
+          {{ ocp_cv.resources[0].status.desired.version
+            if (ocp_cv.resources|length>0 and ocp_cv.resources[0].status is defined and
+                ocp_cv.resources[0].status.desired is defined)
+            else 'unknown' }}
+        platform: >-
+          {{ infra.resources[0].status.platformStatus.type
+            if (infra.resources|length>0 and infra.resources[0].status is defined and
+                infra.resources[0].status.platformStatus is defined)
+            else 'unknown' }}
+        node_count: "{{ (nodes.resources | default([])) | length }}"
+        project_count: "{{ (projects.resources | default([])) | length }}"
+        # Operators with an Available=True condition
+        operators_available: >-
+          {{
+            (
+              operators.resources | default([]) |
+              json_query("[?status.conditions[?type=='Available' && status=='True']]")
+            ) | length
+          }}
+        # (optional) Operators Degraded=True
+        operators_degraded: >-
+          {{
+            (
+              operators.resources | default([]) |
+              json_query("[?status.conditions[?type=='Degraded' && status=='True']]")
+            ) | length
+          }}
+      ansible.builtin.debug:
         msg:
-          openshift_version: >-
-            {{ ocp_cv.resources[0].status.desired.version
-               if (ocp_cv.resources|length>0 and ocp_cv.resources[0].status is defined and ocp_cv.resources[0].status.desired is defined)
-               else 'unknown' }}
-          platform: >-
-            {{ infra.resources[0].status.platformStatus.type
-               if (infra.resources|length>0 and infra.resources[0].status is defined and infra.resources[0].status.platformStatus is defined)
-               else 'unknown' }}
-          nodes: "{{ (nodes.resources | default([])) | length }}"
-          projects: "{{ (projects.resources | default([])) | length }}"
-          operators_healthy: >-
-            {{
-              (operators.resources | default([]))
-              | selectattr('status.conditions', 'defined')
-              | selectattr('status.conditions', 'select', 'equalto', true)
-              | list | length
-            }}
+          openshift_version: "{{ ocp_version }}"
+          platform: "{{ platform }}"
+          nodes: "{{ node_count }}"
+          projects: "{{ project_count }}"
+          operators_available: "{{ operators_available }}"
+          operators_degraded: "{{ operators_degraded }}"
