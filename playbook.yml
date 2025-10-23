@@ -4,13 +4,6 @@
   gather_facts: false
   collections: [kubernetes.core]
 
-  vars:
-    # You can keep using your current auth vars, or switch to k8s_auth + token.
-    k8s_host: "{{ k8s_host }}"
-    k8s_user: "{{ k8s_user }}"
-    k8s_pass: "{{ k8s_pass }}"
-    validate_certs: "{{ validate_certs | default(true) }}"
-
   tasks:
     # 1) API discovery (what you already collected)
     - name: Cluster API discovery
