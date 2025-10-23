@@ -4,22 +4,16 @@
   gather_facts: false
   collections: [kubernetes.core]
 
+  vars:
+    # provide these via Inventory vars or Extra Vars
+    # k8s_host: "https://api.ocpvirt.cpolab.ibm.com:6443"
+    # k8s_user: "myuser"
+    # k8s_pass: "mypassword"
+    validate_certs: true
+    save_artifacts: false   # set true to write JSON files
+
   tasks:
-    # 1) API discovery (what you already collected)
-    - name: Cluster API discovery
-      kubernetes.core.k8s_cluster_info:
-        host: "{{ k8s_host }}"
-        username: "{{ k8s_user }}"
-        password: "{{ k8s_pass }}"
-        validate_certs: "{{ validate_certs }}"
-      register: cluster_info
-
-    - name: Save API discovery
-      copy:
-        dest: ./cluster_api_discovery.json
-        content: "{{ cluster_info | to_nice_json }}"
-
-    # 2) OpenShift version (ClusterVersion/version)
+    # --- Core queries ---
     - name: Get OpenShift ClusterVersion
       kubernetes.core.k8s_info:
         host: "{{ k8s_host }}"
@@ -31,7 +25,6 @@
         name: version
       register: ocp_cv
 
-    # 3) Platform/infrastructure
     - name: Get Infrastructure (platform & region)
       kubernetes.core.k8s_info:
         host: "{{ k8s_host }}"
@@ -43,7 +36,6 @@
         name: cluster
       register: infra
 
-    # 4) ClusterOperators (high-level health)
     - name: Get ClusterOperators
       kubernetes.core.k8s_info:
         host: "{{ k8s_host }}"
@@ -54,7 +46,6 @@
         kind: ClusterOperator
       register: operators
 
-    # 5) Nodes & Projects
     - name: Get Nodes
       kubernetes.core.k8s_info:
         host: "{{ k8s_host }}"
@@ -65,9 +56,18 @@
         kind: Node
       register: nodes
 
-    - name: Build node->arch table
-      vars:
-        nodes_list: "{{ nodes.resources | default([]) }}"
+    - name: Get Projects (namespaces)
+      kubernetes.core.k8s_info:
+        host: "{{ k8s_host }}"
+        username: "{{ k8s_user }}"
+        password: "{{ k8s_pass }}"
+        validate_certs: "{{ validate_certs }}"
+        api_version: project.openshift.io/v1
+        kind: Project
+      register: projects
+
+    # --- Node architecture report (name -> arch) ---
+    - name: Init node_arch_table
       ansible.builtin.set_fact:
         node_arch_table: []
     - name: Collect node architectures
@@ -85,70 +85,26 @@
       loop: "{{ nodes.resources | default([]) }}"
 
     - name: Compute architecture counts
-      vars:
-        _init: {}
       ansible.builtin.set_fact:
-        arch_counts: "{{ _init }}"
+        arch_counts: {}
     - name: Increment counts per arch
       ansible.builtin.set_fact:
         arch_counts: "{{ arch_counts | combine({ item.arch: (arch_counts.get(item.arch, 0) + 1) }) }}"
       loop: "{{ node_arch_table }}"
 
-    # - name: Print node architectures
-    #   ansible.builtin.debug:
-    #     msg:
-    #       nodes_by_arch: "{{ node_arch_table }}"
-    #       node_arch_summary: "{{ arch_counts }}"
-
-    - name: Get Projects (namespaces)
-      kubernetes.core.k8s_info:
-        host: "{{ k8s_host }}"
-        username: "{{ k8s_user }}"
-        password: "{{ k8s_pass }}"
-        validate_certs: "{{ validate_certs }}"
-        api_version: project.openshift.io/v1
-        kind: Project
-      register: projects
-
-    # 6) Save detailed payloads for download
-    - name: Save ClusterVersion
-      copy:
-        dest: ./clusterversion.json
-        content: "{{ ocp_cv | to_nice_json }}"
-
-    - name: Save Infrastructure
-      copy:
-        dest: ./infrastructure.json
-        content: "{{ infra | to_nice_json }}"
-
-    - name: Save ClusterOperators
-      copy:
-        dest: ./clusteroperators.json
-        content: "{{ operators | to_nice_json }}"
-
-    - name: Save Nodes
-      copy:
-        dest: ./nodes.json
-        content: "{{ nodes | to_nice_json }}"
-
-    - name: Save Projects
-      copy:
-        dest: ./projects.json
-        content: "{{ projects | to_nice_json }}"
-
-    # 7) Human-friendly summary in the job log
+    # --- Summary to job log (pure Jinja; no json_query needed) ---
     - name: Summary
       vars:
         ocp_version: >-
           {{ ocp_cv.resources[0].status.desired.version
-            if (ocp_cv.resources|length>0 and ocp_cv.resources[0].status is defined and
-                ocp_cv.resources[0].status.desired is defined)
-            else 'unknown' }}
+             if (ocp_cv.resources|length>0 and ocp_cv.resources[0].status is defined and
+                 ocp_cv.resources[0].status.desired is defined)
+             else 'unknown' }}
         platform: >-
           {{ infra.resources[0].status.platformStatus.type
-            if (infra.resources|length>0 and infra.resources[0].status is defined and
-                infra.resources[0].status.platformStatus is defined)
-            else 'unknown' }}
+             if (infra.resources|length>0 and infra.resources[0].status is defined and
+                 infra.resources[0].status.platformStatus is defined)
+             else 'unknown' }}
         node_count: "{{ (nodes.resources | default([])) | length }}"
         project_count: "{{ (projects.resources | default([])) | length }}"
         operators_available: >-
@@ -161,12 +117,26 @@
             | list
             | length
           }}
-      debug:
+      ansible.builtin.debug:
         msg:
           openshift_version: "{{ ocp_version }}"
           platform: "{{ platform }}"
           nodes: "{{ node_count }}"
-          # nodes_by_arch: "{{ node_arch_table }}"
           node_arch_summary: "{{ arch_counts }}"
           projects: "{{ project_count }}"
           operators_available: "{{ operators_available }}"
+          # (optional) include each node's arch:
+          # nodes_by_arch: "{{ node_arch_table }}"
+
+    # --- Optional: write artifacts only when requested ---
+    - name: Save gathered JSON artifacts (optional)
+      when: save_artifacts | bool
+      ansible.builtin.copy:
+        dest: "./{{ item.name }}.json"
+        content: "{{ item.content | to_nice_json }}"
+      loop:
+        - { name: "clusterversion",     content: "{{ ocp_cv }}" }
+        - { name: "infrastructure",     content: "{{ infra }}" }
+        - { name: "clusteroperators",   content: "{{ operators }}" }
+        - { name: "nodes",              content: "{{ nodes }}" }
+        - { name: "projects",           content: "{{ projects }}" }
