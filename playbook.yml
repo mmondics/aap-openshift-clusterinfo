@@ -9,7 +9,7 @@
     # k8s_host: "https://api.ocpvirt.cpolab.ibm.com:6443"
     # k8s_user: "myuser"
     # k8s_pass: "mypassword"
-    validate_certs: true
+    validate_certs: false
     save_artifacts: false   # set true to write JSON files
 
   tasks:
