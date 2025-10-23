@@ -92,7 +92,20 @@
         arch_counts: "{{ arch_counts | combine({ item.arch: (arch_counts.get(item.arch, 0) + 1) }) }}"
       loop: "{{ node_arch_table }}"
 
-    # --- Summary to job log (pure Jinja; no json_query needed) ---
+    # --- Optional: write artifacts only when requested ---
+    - name: Save gathered JSON artifacts (optional)
+      when: save_artifacts | bool
+      ansible.builtin.copy:
+        dest: "./{{ item.name }}.json"
+        content: "{{ item.content | to_nice_json }}"
+      loop:
+        - { name: "clusterversion",     content: "{{ ocp_cv }}" }
+        - { name: "infrastructure",     content: "{{ infra }}" }
+        - { name: "clusteroperators",   content: "{{ operators }}" }
+        - { name: "nodes",              content: "{{ nodes }}" }
+        - { name: "projects",           content: "{{ projects }}" }
+
+    # --- Summary to job log ---
     - name: Summary
       vars:
         ocp_version: >-
@@ -127,16 +140,3 @@
           operators_available: "{{ operators_available }}"
           # (optional) include each node's arch:
           # nodes_by_arch: "{{ node_arch_table }}"
-
-    # --- Optional: write artifacts only when requested ---
-    - name: Save gathered JSON artifacts (optional)
-      when: save_artifacts | bool
-      ansible.builtin.copy:
-        dest: "./{{ item.name }}.json"
-        content: "{{ item.content | to_nice_json }}"
-      loop:
-        - { name: "clusterversion",     content: "{{ ocp_cv }}" }
-        - { name: "infrastructure",     content: "{{ infra }}" }
-        - { name: "clusteroperators",   content: "{{ operators }}" }
-        - { name: "nodes",              content: "{{ nodes }}" }
-        - { name: "projects",           content: "{{ projects }}" }
