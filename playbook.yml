@@ -65,6 +65,41 @@
         kind: Node
       register: nodes
 
+    - name: Build node->arch table
+      vars:
+        nodes_list: "{{ nodes.resources | default([]) }}"
+      ansible.builtin.set_fact:
+        node_arch_table: []
+    - name: Collect node architectures
+      ansible.builtin.set_fact:
+        node_arch_table: >-
+          {{ node_arch_table + [ {
+              'name': item.metadata.name,
+              'arch': (
+                item.status.nodeInfo.architecture
+                | default(item.metadata.labels['kubernetes.io/arch']
+                | default(item.metadata.labels['beta.kubernetes.io/arch']
+                | default('unknown')))
+              )
+            } ] }}
+      loop: "{{ nodes.resources | default([]) }}"
+
+    - name: Compute architecture counts
+      vars:
+        _init: {}
+      ansible.builtin.set_fact:
+        arch_counts: "{{ _init }}"
+    - name: Increment counts per arch
+      ansible.builtin.set_fact:
+        arch_counts: "{{ arch_counts | combine({ item.arch: (arch_counts.get(item.arch, 0) + 1) }) }}"
+      loop: "{{ node_arch_table }}"
+
+    - name: Print node architectures
+      ansible.builtin.debug:
+        msg:
+          nodes_by_arch: "{{ node_arch_table }}"
+          arch_summary: "{{ arch_counts }}"
+          
     - name: Get Projects (namespaces)
       kubernetes.core.k8s_info:
         host: "{{ k8s_host }}"
