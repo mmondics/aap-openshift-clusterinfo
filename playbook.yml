@@ -133,7 +133,7 @@
       ansible.builtin.debug:
         msg:
           openshift_version: "{{ ocp_version }}"
-          platform: "{{ platform }}"
+          # platform: "{{ platform }}"
           nodes: "{{ node_count }}"
           node_arch_summary: "{{ arch_counts }}"
           projects: "{{ project_count }}"
