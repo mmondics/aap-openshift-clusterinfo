@@ -25,16 +25,16 @@
         name: version
       register: ocp_cv
 
-    - name: Get Infrastructure (platform & region)
-      kubernetes.core.k8s_info:
-        host: "{{ k8s_host }}"
-        username: "{{ k8s_user }}"
-        password: "{{ k8s_pass }}"
-        validate_certs: "{{ validate_certs }}"
-        api_version: config.openshift.io/v1
-        kind: Infrastructure
-        name: cluster
-      register: infra
+    # - name: Get Infrastructure (platform & region)
+    #   kubernetes.core.k8s_info:
+    #     host: "{{ k8s_host }}"
+    #     username: "{{ k8s_user }}"
+    #     password: "{{ k8s_pass }}"
+    #     validate_certs: "{{ validate_certs }}"
+    #     api_version: config.openshift.io/v1
+    #     kind: Infrastructure
+    #     name: cluster
+    #   register: infra
 
     - name: Get ClusterOperators
       kubernetes.core.k8s_info:
