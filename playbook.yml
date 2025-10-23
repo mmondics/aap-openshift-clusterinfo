@@ -94,12 +94,12 @@
         arch_counts: "{{ arch_counts | combine({ item.arch: (arch_counts.get(item.arch, 0) + 1) }) }}"
       loop: "{{ node_arch_table }}"
 
-    - name: Print node architectures
-      ansible.builtin.debug:
-        msg:
-          nodes_by_arch: "{{ node_arch_table }}"
-          arch_summary: "{{ arch_counts }}"
-          
+    # - name: Print node architectures
+    #   ansible.builtin.debug:
+    #     msg:
+    #       nodes_by_arch: "{{ node_arch_table }}"
+    #       arch_summary: "{{ arch_counts }}"
+
     - name: Get Projects (namespaces)
       kubernetes.core.k8s_info:
         host: "{{ k8s_host }}"
@@ -166,5 +166,7 @@
           openshift_version: "{{ ocp_version }}"
           platform: "{{ platform }}"
           nodes: "{{ node_count }}"
+          nodes_by_arch: "{{ node_arch_table }}"
+          arch_summary: "{{ arch_counts }}"
           projects: "{{ project_count }}"
           operators_available: "{{ operators_available }}"
