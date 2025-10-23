@@ -2,30 +2,18 @@
 - name: Gather OpenShift cluster information
   hosts: localhost
   gather_facts: false
+  collections: [kubernetes.core]
+
+  vars:
+    # You can keep using your current auth vars, or switch to k8s_auth + token.
+    k8s_host: "{{ k8s_host }}"
+    k8s_user: "{{ k8s_user }}"
+    k8s_pass: "{{ k8s_pass }}"
+    validate_certs: "{{ validate_certs | default(true) }}"
 
   tasks:
-    # - name: Ensure kubernetes.core collection is available
-    #   ansible.builtin.meta: require_collection
-    #   collections:
-    #     - kubernetes.core
-
-    # - name: Show cluster API endpoint from oc whoami --show-server
-    #   ansible.builtin.command: oc whoami --show-server
-    #   register: whoami_server
-    #   changed_when: false
-
-    # - name: Print API endpoint detected by oc
-    #   ansible.builtin.debug:
-    #     msg: "oc whoami --show-server => {{ whoami_server.stdout }}"
-
-    # - name: Verify current oc context matches expected API endpoint
-    #   ansible.builtin.assert:
-    #     that:
-    #       - whoami_server.stdout == k8s_api_url
-    #     success_msg: "Connected to expected API server {{ k8s_api_url }}"
-    #     fail_msg: "Current oc context points to {{ whoami_server.stdout }}, not {{ k8s_api_url }}"
-
-    - name: Gather cluster API resources (k8s_cluster_info)
+    # 1) API discovery (what you already collected)
+    - name: Cluster API discovery
       kubernetes.core.k8s_cluster_info:
         host: "{{ k8s_host }}"
         username: "{{ k8s_user }}"
@@ -33,27 +21,111 @@
         validate_certs: "{{ validate_certs }}"
       register: cluster_info
 
-    - name: Print raw cluster info
-      ansible.builtin.debug:
-        var: cluster_info
-      
-    # - name: Show a quick summary from k8s_cluster_info
-    #   ansible.builtin.debug:
-    #     msg:
-    #       total_api_groups: "{{ (cluster_info.api_groups | default([])) | length }}"
-    #       # Some environments expose 'resources' directly; guard with default
-    #       total_api_resources: "{{ (cluster_info.resources | default([])) | length }}"
+    - name: Save API discovery
+      copy:
+        dest: ./cluster_api_discovery.json
+        content: "{{ cluster_info | to_nice_json }}"
 
-    # - name: Get OpenShift ClusterVersion
-    #   kubernetes.core.k8s_info:
-    #     api_version: config.openshift.io/v1
-    #     kind: ClusterVersion
-    #     name: version
-    #     kubeconfig: "{{ k8s_kubeconfig }}"
-    #     context: "{{ k8s_context | default(omit) }}"
-    #   register: ocp_cv
+    # 2) OpenShift version (ClusterVersion/version)
+    - name: Get OpenShift ClusterVersion
+      kubernetes.core.k8s_info:
+        host: "{{ k8s_host }}"
+        username: "{{ k8s_user }}"
+        password: "{{ k8s_pass }}"
+        validate_certs: "{{ validate_certs }}"
+        api_version: config.openshift.io/v1
+        kind: ClusterVersion
+        name: version
+      register: ocp_cv
 
-    # - name: Print OpenShift version
-    #   ansible.builtin.debug:
-    #     msg: "OpenShift version: {{ ocp_cv.resources[0].status.desired.version }} (channel: {{ ocp_cv.resources[0].spec.channel }})"
-    #   when: (ocp_cv.resources | default([])) | length > 0
+    # 3) Platform/infrastructure
+    - name: Get Infrastructure (platform & region)
+      kubernetes.core.k8s_info:
+        host: "{{ k8s_host }}"
+        username: "{{ k8s_user }}"
+        password: "{{ k8s_pass }}"
+        validate_certs: "{{ validate_certs }}"
+        api_version: config.openshift.io/v1
+        kind: Infrastructure
+        name: cluster
+      register: infra
+
+    # 4) ClusterOperators (high-level health)
+    - name: Get ClusterOperators
+      kubernetes.core.k8s_info:
+        host: "{{ k8s_host }}"
+        username: "{{ k8s_user }}"
+        password: "{{ k8s_pass }}"
+        validate_certs: "{{ validate_certs }}"
+        api_version: config.openshift.io/v1
+        kind: ClusterOperator
+      register: operators
+
+    # 5) Nodes & Projects
+    - name: Get Nodes
+      kubernetes.core.k8s_info:
+        host: "{{ k8s_host }}"
+        username: "{{ k8s_user }}"
+        password: "{{ k8s_pass }}"
+        validate_certs: "{{ validate_certs }}"
+        api_version: v1
+        kind: Node
+      register: nodes
+
+    - name: Get Projects (namespaces)
+      kubernetes.core.k8s_info:
+        host: "{{ k8s_host }}"
+        username: "{{ k8s_user }}"
+        password: "{{ k8s_pass }}"
+        validate_certs: "{{ validate_certs }}"
+        api_version: project.openshift.io/v1
+        kind: Project
+      register: projects
+
+    # 6) Save detailed payloads for download
+    - name: Save ClusterVersion
+      copy:
+        dest: ./clusterversion.json
+        content: "{{ ocp_cv | to_nice_json }}"
+
+    - name: Save Infrastructure
+      copy:
+        dest: ./infrastructure.json
+        content: "{{ infra | to_nice_json }}"
+
+    - name: Save ClusterOperators
+      copy:
+        dest: ./clusteroperators.json
+        content: "{{ operators | to_nice_json }}"
+
+    - name: Save Nodes
+      copy:
+        dest: ./nodes.json
+        content: "{{ nodes | to_nice_json }}"
+
+    - name: Save Projects
+      copy:
+        dest: ./projects.json
+        content: "{{ projects | to_nice_json }}"
+
+    # 7) Human-friendly summary in the job log
+    - name: Summary
+      debug:
+        msg:
+          openshift_version: >-
+            {{ ocp_cv.resources[0].status.desired.version
+               if (ocp_cv.resources|length>0 and ocp_cv.resources[0].status is defined and ocp_cv.resources[0].status.desired is defined)
+               else 'unknown' }}
+          platform: >-
+            {{ infra.resources[0].status.platformStatus.type
+               if (infra.resources|length>0 and infra.resources[0].status is defined and infra.resources[0].status.platformStatus is defined)
+               else 'unknown' }}
+          nodes: "{{ (nodes.resources | default([])) | length }}"
+          projects: "{{ (projects.resources | default([])) | length }}"
+          operators_healthy: >-
+            {{
+              (operators.resources | default([]))
+              | selectattr('status.conditions', 'defined')
+              | selectattr('status.conditions', 'select', 'equalto', true)
+              | list | length
+            }}
