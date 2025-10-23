@@ -116,27 +116,20 @@
             else 'unknown' }}
         node_count: "{{ (nodes.resources | default([])) | length }}"
         project_count: "{{ (projects.resources | default([])) | length }}"
-        # Operators with an Available=True condition
         operators_available: >-
           {{
-            (
-              operators.resources | default([]) |
-              json_query("[?status.conditions[?type=='Available' && status=='True']]")
-            ) | length
+            operators.resources
+            | map(attribute='status.conditions')
+            | select('defined')
+            | map('selectattr', 'type', 'equalto', 'Available')
+            | map('selectattr', 'status', 'equalto', 'True')
+            | list
+            | length
           }}
-        # (optional) Operators Degraded=True
-        operators_degraded: >-
-          {{
-            (
-              operators.resources | default([]) |
-              json_query("[?status.conditions[?type=='Degraded' && status=='True']]")
-            ) | length
-          }}
-      ansible.builtin.debug:
+      debug:
         msg:
           openshift_version: "{{ ocp_version }}"
           platform: "{{ platform }}"
           nodes: "{{ node_count }}"
           projects: "{{ project_count }}"
           operators_available: "{{ operators_available }}"
-          operators_degraded: "{{ operators_degraded }}"
