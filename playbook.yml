@@ -98,7 +98,7 @@
     #   ansible.builtin.debug:
     #     msg:
     #       nodes_by_arch: "{{ node_arch_table }}"
-    #       arch_summary: "{{ arch_counts }}"
+    #       node_arch_summary: "{{ arch_counts }}"
 
     - name: Get Projects (namespaces)
       kubernetes.core.k8s_info:
@@ -166,7 +166,7 @@
           openshift_version: "{{ ocp_version }}"
           platform: "{{ platform }}"
           nodes: "{{ node_count }}"
-          nodes_by_arch: "{{ node_arch_table }}"
-          arch_summary: "{{ arch_counts }}"
+          # nodes_by_arch: "{{ node_arch_table }}"
+          node_arch_summary: "{{ arch_counts }}"
           projects: "{{ project_count }}"
           operators_available: "{{ operators_available }}"
